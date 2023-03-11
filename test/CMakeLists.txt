@@ -1,0 +1,2 @@
+add_executable(RealFunctionTest RealFunctionTest.cpp)
+target_link_libraries(RealFunctionTest symbolic)
