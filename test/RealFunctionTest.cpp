@@ -7,10 +7,10 @@ int main(int argc, char* argv[]){
 
     Symbol x;
 
-    Function f = x;
-    Function g = 2;
-    Function h = x + 2 + x;
+    Function<2> f = x;
+    Function<2> g = 2;
+    // Function<3> h = x + 2;
 
-    std::cout << h(4) << std::endl;
+    std::cout << f(4) << std::endl;
 
 }
