@@ -25,15 +25,15 @@ struct FunctionNode {
     bool has_children;
 };
 
-const int NODES_MAX = 1024;
+const std::size_t NODES_MAX = 1024;
 
 class Function {
     private:
-    const int N;
+    const std::size_t N;
     FunctionNode nodes[NODES_MAX];
 
-    constexpr void moveNodes(const int start, const int len, const FunctionNode nodes2[]){
-        for (int i = 0; i < len; i++){
+    constexpr void moveNodes(const std::size_t start, const std::size_t len, const FunctionNode nodes2[]){
+        for (std::size_t i = 0; i < len; i++){
             nodes[i + start] = nodes2[i];
             if (nodes[i + start].has_children) {
                 nodes[i + start].children[0] += start;
@@ -51,7 +51,7 @@ class Function {
         nodes[0].has_children = true;
     }
 
-    constexpr float evaluateNode(const int i, const float x) const {
+    constexpr float evaluateNode(const std::size_t i, const float x) const {
         switch(nodes[i].ft){
             case Identity:
                 return x;
