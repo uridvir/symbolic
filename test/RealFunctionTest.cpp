@@ -7,8 +7,8 @@ int main(int argc, char* argv[]){
 
     Symbol x;
 
-    Function f = x + 2;
+    Function& f = IdentityFunction();
 
-    std::cout << "f(x) = x + 2; f(4) = " << f(4) << std::endl;
+    std::cout << "f(x) = x; f(4) = " << f(4) << std::endl;
 
 }

@@ -1,8 +1,10 @@
+#pragma once
+
 namespace symbolic {
 
 class Function {
     public:
-    virtual float operator()(float x) const;
+    virtual float operator()(float x) const { return 0; };
 };
 
 class IdentityFunction : public Function {
@@ -35,12 +37,12 @@ class Symbol {
     operator Function() const { return IdentityFunction(); };
 };
 
-SumFunction& operator+(const Function& lhs, const float rhs){
-    return SumFunction(lhs, ConstantFunction(rhs));
-}
+// SumFunction& operator+(const Function& lhs, const float rhs){
+//     return SumFunction(lhs, ConstantFunction(rhs));
+// }
 
-SumFunction& operator+(const Symbol& lhs, const float rhs){
-    return IdentityFunction() + rhs;
-}
+// SumFunction& operator+(const Symbol& lhs, const float rhs){
+//     return IdentityFunction() + rhs;
+// }
 
 }
