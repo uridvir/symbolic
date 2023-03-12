@@ -27,16 +27,17 @@ class Function {
             case Identity: return x;
             case Constant: return C;
             case Sum: return lhs(x) + rhs(x);
-            default: return 0;
+            default: return -9000;
         }
     };
     constexpr Function(const float x) : Function(Constant, *this, x, *this) {}
     constexpr Function(const Symbol& s) : Function(Identity, *this, 0, *this) {}
-    constexpr Function operator+(const float& x) {
+    
+    constexpr Function operator+(const float& x) { //TODO: Addition operators are letting the new children die, FIX THIS
         Function f = x;
         return *this + f;
     }
-    constexpr Function operator+(const Symbol& s) {
+    constexpr Function operator+(const Symbol& s) { //TODO: ...
         Function f = s;
         return *this + f;
     }

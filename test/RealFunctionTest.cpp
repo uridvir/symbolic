@@ -8,8 +8,9 @@ int main(int argc, char* argv[]){
     Symbol x;
 
     Function f = x;
-    Function g = f + f;
+    Function g = 2;
+    Function h = f + x;
 
-    std::cout << "g(x) = x + x; g(4) = " << g(4) << std::endl;
+    std::cout << h(4) << std::endl;
 
 }
