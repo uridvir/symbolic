@@ -46,4 +46,10 @@ class Function {
     }
 };
 
+constexpr Function operator+(const Symbol& s, const float x){
+    Function f1 = s;
+    Function f2 = x;
+    return f1 + f2;
+}
+
 }

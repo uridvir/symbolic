@@ -9,7 +9,7 @@ int main(int argc, char* argv[]){
 
     Function f = x;
     Function g = 2;
-    Function h = f + x;
+    Function h = x + 2 + x;
 
     std::cout << h(4) << std::endl;
 
