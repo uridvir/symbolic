@@ -1,33 +1,32 @@
-#include <limits>
 #include <cmath>
+#include <limits>
 
 namespace symbolic {
 
 class Symbol {};
 
 enum FunctionType {
-    //Default
+    // Default
     Null,
-    //Variables
+    // Variables
     Identity,
-    //Numbers
+    // Numbers
     Constant,
-    //Operations
+    // Operations
     Sum,
     Difference,
     Product,
     Ratio,
     Power,
-    //Composition
+    // Composition
     Composition,
-    //Primitives
+    // Primitives
     Sine,
 };
 
 struct FunctionNode {
     FunctionType ft;
-    union
-    {
+    union {
         int children[2];
         float C;
         const Symbol* sym;
@@ -38,12 +37,12 @@ struct FunctionNode {
 const std::size_t NODES_MAX = 1024;
 
 class Function {
-    private:
+   private:
     const std::size_t N;
     FunctionNode nodes[NODES_MAX];
 
-    constexpr void moveNodes(const std::size_t start, const std::size_t len, const FunctionNode nodes2[]){
-        for (std::size_t i = 0; i < len; i++){
+    constexpr void moveNodes(const std::size_t start, const std::size_t len, const FunctionNode nodes2[]) {
+        for (std::size_t i = 0; i < len; i++) {
             nodes[i + start] = nodes2[i];
             if (nodes[i + start].has_children) {
                 nodes[i + start].children[0] += start;
@@ -80,21 +79,21 @@ class Function {
     // }
 
     constexpr float evaluateNode(const std::size_t i, const float x) const {
-        switch(nodes[i].ft){
+        switch (nodes[i].ft) {
             case Identity:
                 return x;
             case Constant:
                 return nodes[i].C;
-            //Binary operations
-            case Sum: 
+            // Binary operations
+            case Sum:
                 return evaluateNode(nodes[i].children[0], x) + evaluateNode(nodes[i].children[1], x);
-            case Difference: 
+            case Difference:
                 return evaluateNode(nodes[i].children[0], x) - evaluateNode(nodes[i].children[1], x);
-            case Product: 
+            case Product:
                 return evaluateNode(nodes[i].children[0], x) * evaluateNode(nodes[i].children[1], x);
-            case Ratio: 
+            case Ratio:
                 return evaluateNode(nodes[i].children[0], x) / evaluateNode(nodes[i].children[1], x);
-            case Power: 
+            case Power:
                 return std::pow(evaluateNode(nodes[i].children[0], x), evaluateNode(nodes[i].children[1], x));
             // //Composition
             // case Composition:
@@ -102,7 +101,7 @@ class Function {
             //     auto f = Function(nodes[i].children[0], nodes[i].children[1] - nodes[i].children[0], nodes);
             //     return f(evaluateNode(nodes[i].children[1], x));
             // }
-            //Primitives
+            // Primitives
             case Sine:
                 return std::sin(evaluateNode(nodes[i].children[0], x));
             default:
@@ -110,11 +109,11 @@ class Function {
         }
     }
 
-    public:
-    //Function evaluation
+   public:
+    // Function evaluation
     constexpr float operator()(const float x) const { return evaluateNode(0, x); }
 
-    //Direct conversions
+    // Direct conversions
     constexpr Function(const Symbol& sym) : N(1), nodes() {
         nodes[0].ft = Identity;
         nodes[0].sym = &sym;
@@ -125,19 +124,19 @@ class Function {
         nodes[0].C = x;
         nodes[0].has_children = false;
     }
-    
-    //Binary operations
-    template<class T1, class T2>
+
+    // Binary operations
+    template <class T1, class T2>
     friend constexpr Function operator+(const T1& t1, const T2& t2);
-    template<class T1, class T2>
+    template <class T1, class T2>
     friend constexpr Function operator-(const T1& t1, const T2& t2);
-    template<class T1, class T2>
+    template <class T1, class T2>
     friend constexpr Function operator*(const T1& t1, const T2& t2);
-    template<class T1, class T2>
+    template <class T1, class T2>
     friend constexpr Function operator/(const T1& t1, const T2& t2);
-    template<class T1, class T2>
+    template <class T1, class T2>
     friend constexpr Function operator^(const T1& t1, const T2& t2);
-    
+
     // //Composition
     // template<class T>
     // constexpr Function operator()(const T& t) {
@@ -145,46 +144,34 @@ class Function {
     //     return Function(Composition, *this, f);
     // }
 
-    //Primitive functions
-    template<class T>
+    // Primitive functions
+    template <class T>
     friend constexpr Function sine(const T& f);
 };
 
-template<class T1, class T2>
-constexpr Function operator+(const T1& t1, const T2& t2){
-    auto f1 = t1;
-    auto f2 = t2;
-    return Function(Sum, f1, f2);
+template <class T1, class T2>
+constexpr Function operator+(const T1& t1, const T2& t2) {
+    return Function(Sum, t1, t2);
 }
-template<class T1, class T2>
-constexpr Function operator-(const T1& t1, const T2& t2){
-    auto f1 = t1;
-    auto f2 = t2;
-    return Function(Difference, f1, f2);
+template <class T1, class T2>
+constexpr Function operator-(const T1& t1, const T2& t2) {
+    return Function(Difference, t1, t2);
 }
-template<class T1, class T2>
-constexpr Function operator*(const T1& t1, const T2& t2){
-    auto f1 = t1;
-    auto f2 = t2;
-    return Function(Product, f1, f2);
+template <class T1, class T2>
+constexpr Function operator*(const T1& t1, const T2& t2) {
+    return Function(Product, t1, t2);
 }
-template<class T1, class T2>
-constexpr Function operator/(const T1& t1, const T2& t2){
-    auto f1 = t1;
-    auto f2 = t2;
-    return Function(Ratio, f1, f2);
+template <class T1, class T2>
+constexpr Function operator/(const T1& t1, const T2& t2) {
+    return Function(Ratio, t1, t2);
 }
-template<class T1, class T2>
-constexpr Function operator^(const T1& t1, const T2& t2){
-    auto f1 = t1;
-    auto f2 = t2;
-    return Function(Power, f1, f2);
+template <class T1, class T2>
+constexpr Function operator^(const T1& t1, const T2& t2) {
+    return Function(Power, t1, t2);
+}
+template <class T>
+constexpr Function sine(const T& t) {
+    return Function(Sine, t);
 }
 
-template<class T>
-constexpr Function sine(const T& t){
-    auto f = t;
-    return Function(Sine, f);
-}
-
-}
+}  // namespace symbolic
