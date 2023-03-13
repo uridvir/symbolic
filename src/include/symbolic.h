@@ -36,6 +36,7 @@ struct FunctionNode {
 
 const std::size_t NODES_MAX = 1024;
 
+//TODO: Make function templated
 class Function {
    private:
     const std::size_t N;
