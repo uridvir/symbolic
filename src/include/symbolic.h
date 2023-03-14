@@ -1,4 +1,6 @@
 #include <cmath>
+#include <complex>
+#include <concepts>
 #include <limits>
 
 namespace symbolic {
@@ -6,85 +8,170 @@ namespace symbolic {
 class Symbol {};
 
 enum FunctionType {
-    // Default
-    Null,
-    // Variables
-    Identity,
-    // Numbers
-    Constant,
-    // Operations
+    Null,      // Default
+    Identity,  // Variables
+    Constant,  // Numbers
     Sum,
     Difference,
     Product,
     Ratio,
-    Power,
-    // Composition
-    Composition,
-    // Primitives
-    Sine,
+    Power,        // Operations
+    Composition,  // Composition
+    Sine,         // Primitives
 };
+
+using symbolic_fundamental_t = long double;
+using symbolic_complex_t = std::complex<symbolic_fundamental_t>;
 
 struct FunctionNode {
     FunctionType ft;
     union {
         int children[2];
-        float C;
+        symbolic_fundamental_t C[2];
         const Symbol* sym;
     };
     bool has_children;
 };
 
-const std::size_t NODES_MAX = 1024;
-
-//TODO: Make function templated
-class Function {
-   private:
-    const std::size_t N;
-    FunctionNode nodes[NODES_MAX];
-
-    constexpr void moveNodes(const std::size_t start, const std::size_t len, const FunctionNode nodes2[]) {
-        for (std::size_t i = 0; i < len; i++) {
-            nodes[i + start] = nodes2[i];
-            if (nodes[i + start].has_children) {
-                nodes[i + start].children[0] += start;
-                nodes[i + start].children[1] += start;
-            }
+/**
+ * Move n nodes from nodes1, starting at index start1, to nodes2, starting at index start2.
+ * Handles transformation of indices.
+ */
+void moveNodes(std::size_t n, const FunctionNode nodes1[], std::size_t start1, FunctionNode nodes2[], std::size_t start2) {
+    for (std::size_t i = 0; i < n; i++) {
+        nodes2[i + start2] = nodes1[i + start1];
+        if (nodes2[i + start2].has_children) {
+            nodes2[i + start2].children[0] += start2 - start1;
+            nodes2[i + start2].children[1] += start2 - start1;
         }
     }
+}
 
-    constexpr Function(const FunctionType ft, const Function& lhs, const Function& rhs) : N(lhs.N + rhs.N + 1), nodes() {
+template <int N>
+class Function_rvalue;
+
+template <typename T>
+struct node_count : std::integral_constant<int, 0> {};
+template <typename T>
+constexpr int node_count_v = node_count<T>::value;
+template <>
+struct node_count<Symbol> : std::integral_constant<int, 1> {};
+template <typename T>
+concept Algebraic = std::convertible_to<T, symbolic_complex_t>;
+template <Algebraic T>
+struct node_count<T> : std::integral_constant<int, 1> {};
+template <int N>
+struct node_count<Function_rvalue<N>> : std::integral_constant<int, N> {};
+
+template <int N>
+class Function_rvalue {
+   private:
+    FunctionNode nodes[N];
+
+    template <int N1>
+    friend class Function_rvalue;
+
+    template <Algebraic InputType, Algebraic OutputType>
+    friend class Function_lvalue;
+
+    template <int N1, int N2, typename = typename std::enable_if_t<N == N1 + N2 + 1>>
+    constexpr Function_rvalue(FunctionType ft, const Function_rvalue<N1>& lhs, const Function_rvalue<N2>& rhs) {
         nodes[0].ft = ft;
-        nodes[0].children[0] = 1;
-        moveNodes(1, lhs.N, lhs.nodes);
-        nodes[0].children[1] = 1 + lhs.N;
-        moveNodes(1 + lhs.N, rhs.N, rhs.nodes);
         nodes[0].has_children = true;
+        nodes[0].children[0] = 1;
+        nodes[0].children[1] = 1 + N1;
+        moveNodes(N1, lhs.nodes, 0, nodes, nodes[0].children[0]);
+        moveNodes(N2, rhs.nodes, 0, nodes, nodes[0].children[1]);
     }
 
-    constexpr Function(const FunctionType ft, const Function& lhs) : N(lhs.N + 1), nodes() {
+    template <int N1, typename = typename std::enable_if_t<N == N1 + 1>>
+    constexpr Function_rvalue(FunctionType ft, const Function_rvalue<N1>& lhs) {
         nodes[0].ft = ft;
-        nodes[0].children[0] = 1;
-        moveNodes(1, lhs.N, lhs.nodes);
         nodes[0].has_children = true;
+        nodes[0].children[0] = 1;
+        moveNodes(N1, lhs.nodes, 0, nodes, nodes[0].children[0]);
     }
 
-    // //Create a Function from part of the tree of another Function
-    // constexpr Function(const std::size_t start, const std::size_t len, const FunctionNode nodes2[]) : N(len), nodes() {
-    //     for (std::size_t i = 0; i < len; i++){
-    //         nodes[i] = nodes2[i + start];
-    //         if (nodes[i].has_children) {
-    //             nodes[i].children[0] -= start;
-    //             nodes[i].children[1] -= start;
-    //         }
-    //     }
-    // }
+   public:
+    template <typename = std::enable_if_t<N == 1>>
+    constexpr Function_rvalue(const Symbol& sym) : nodes() {
+        nodes[0].ft = Identity;
+        nodes[0].sym = &sym;
+        nodes[0].has_children = false;
+    }
+    template <class T, typename = std::enable_if_t<N == 1>>
+    constexpr Function_rvalue(const T& t) : nodes() {
+        nodes[0].ft = Constant;
+        std::complex c = t;
+        nodes[0].C[0] = c.real();
+        nodes[0].C[1] = c.imag();
+        nodes[0].has_children = false;
+    }
 
-    constexpr float evaluateNode(const std::size_t i, const float x) const {
+    // Binary operations
+    template <class T1, class T2>
+    friend constexpr Function_rvalue<node_count_v<T1> + node_count_v<T2> + 1> operator+(const T1& t1, const T2& t2);
+    template <class T1, class T2>
+    friend constexpr Function_rvalue<node_count_v<T1> + node_count_v<T2> + 1> operator-(const T1& t1, const T2& t2);
+    template <class T1, class T2>
+    friend constexpr Function_rvalue<node_count_v<T1> + node_count_v<T2> + 1> operator*(const T1& t1, const T2& t2);
+    template <class T1, class T2>
+    friend constexpr Function_rvalue<node_count_v<T1> + node_count_v<T2> + 1> operator/(const T1& t1, const T2& t2);
+    template <class T1, class T2>
+    friend constexpr Function_rvalue<node_count_v<T1> + node_count_v<T2> + 1> operator^(const T1& t1, const T2& t2);
+
+    // Primitive functions
+    template <class T>
+    friend constexpr Function_rvalue<node_count_v<T> + 1> sine(const T& t);
+    // template <Simple T>
+    // friend constexpr Function_rvalue<2> sine(const T& t);
+};
+
+template <class T1, class T2>
+constexpr Function_rvalue<node_count_v<T1> + node_count_v<T2> + 1> operator+(const T1& t1, const T2& t2) {
+    const int N1 = node_count_v<T1>; const int N2 = node_count_v<T2>; const int N = N1 + N2 + 1;
+    return Function_rvalue<N>(Sum, Function_rvalue<N1>(t1), Function_rvalue<N2>(t2));
+}
+template <class T1, class T2>
+constexpr Function_rvalue<node_count_v<T1> + node_count_v<T2> + 1> operator-(const T1& t1, const T2& t2) {
+    const int N1 = node_count_v<T1>; const int N2 = node_count_v<T2>; const int N = N1 + N2 + 1;
+    return Function_rvalue<N>(Difference, Function_rvalue<N1>(t1), Function_rvalue<N2>(t2));
+}
+template <class T1, class T2>
+constexpr Function_rvalue<node_count_v<T1> + node_count_v<T2> + 1> operator*(const T1& t1, const T2& t2) {
+    const int N1 = node_count_v<T1>; const int N2 = node_count_v<T2>; const int N = N1 + N2 + 1;
+    return Function_rvalue<N>(Product, Function_rvalue<N1>(t1), Function_rvalue<N2>(t2));
+}
+template <class T1, class T2>
+constexpr Function_rvalue<node_count_v<T1> + node_count_v<T2> + 1> operator/(const T1& t1, const T2& t2) {
+    const int N1 = node_count_v<T1>; const int N2 = node_count_v<T2>; const int N = N1 + N2 + 1;
+    return Function_rvalue<N>(Ratio, Function_rvalue<N1>(t1), Function_rvalue<N2>(t2));
+}
+template <class T1, class T2>
+constexpr Function_rvalue<node_count_v<T1> + node_count_v<T2> + 1> operator^(const T1& t1, const T2& t2) {
+    const int N1 = node_count_v<T1>; const int N2 = node_count_v<T2>; const int N = N1 + N2 + 1;
+    return Function_rvalue<N>(Power, Function_rvalue<N1>(t1), Function_rvalue<N2>(t2));
+}
+template <class T>
+constexpr Function_rvalue<node_count_v<T> + 1> sine(const T& t) {
+    const int N1 = node_count_v<T>; const int N = N1 + 1;
+    return Function_rvalue<N>(Sine, Function_rvalue<N1>(t));
+}
+
+const int MAX_NODES = 1024;
+
+template <Algebraic InputType, Algebraic OutputType>
+class Function_lvalue {
+    private:
+    FunctionNode nodes[MAX_NODES];
+    const int N;
+
+    constexpr OutputType evaluateNode(const std::size_t i, const InputType& x) const {
         switch (nodes[i].ft) {
             case Identity:
                 return x;
             case Constant:
-                return nodes[i].C;
+                return nodes[i].C[0]; //TODO: Proper down-casting from complex
             // Binary operations
             case Sum:
                 return evaluateNode(nodes[i].children[0], x) + evaluateNode(nodes[i].children[1], x);
@@ -96,12 +183,6 @@ class Function {
                 return evaluateNode(nodes[i].children[0], x) / evaluateNode(nodes[i].children[1], x);
             case Power:
                 return std::pow(evaluateNode(nodes[i].children[0], x), evaluateNode(nodes[i].children[1], x));
-            // //Composition
-            // case Composition:
-            // {
-            //     auto f = Function(nodes[i].children[0], nodes[i].children[1] - nodes[i].children[0], nodes);
-            //     return f(evaluateNode(nodes[i].children[1], x));
-            // }
             // Primitives
             case Sine:
                 return std::sin(evaluateNode(nodes[i].children[0], x));
@@ -110,69 +191,21 @@ class Function {
         }
     }
 
-   public:
-    // Function evaluation
-    constexpr float operator()(const float x) const { return evaluateNode(0, x); }
-
-    // Direct conversions
-    constexpr Function(const Symbol& sym) : N(1), nodes() {
-        nodes[0].ft = Identity;
-        nodes[0].sym = &sym;
-        nodes[0].has_children = false;
-    }
-    constexpr Function(const float x) : N(1), nodes() {
-        nodes[0].ft = Constant;
-        nodes[0].C = x;
-        nodes[0].has_children = false;
+    public:
+    template <int N>
+    constexpr Function_lvalue(const Function_rvalue<N>& rhs) : nodes(), N(N) {
+        for (std::size_t i = 0; i < N; i++) nodes[i] = rhs.nodes[i];
     }
 
-    // Binary operations
-    template <class T1, class T2>
-    friend constexpr Function operator+(const T1& t1, const T2& t2);
-    template <class T1, class T2>
-    friend constexpr Function operator-(const T1& t1, const T2& t2);
-    template <class T1, class T2>
-    friend constexpr Function operator*(const T1& t1, const T2& t2);
-    template <class T1, class T2>
-    friend constexpr Function operator/(const T1& t1, const T2& t2);
-    template <class T1, class T2>
-    friend constexpr Function operator^(const T1& t1, const T2& t2);
-
-    // //Composition
-    // template<class T>
-    // constexpr Function operator()(const T& t) {
-    //     auto f = t;
-    //     return Function(Composition, *this, f);
-    // }
-
-    // Primitive functions
     template <class T>
-    friend constexpr Function sine(const T& f);
+    constexpr Function_lvalue(const T& t) : Function_lvalue(Function_rvalue<node_count_v<T>>(t)) {}
+
+    constexpr OutputType operator()(const InputType& x) const {
+        return evaluateNode(0, x);
+    }    
 };
 
-template <class T1, class T2>
-constexpr Function operator+(const T1& t1, const T2& t2) {
-    return Function(Sum, t1, t2);
-}
-template <class T1, class T2>
-constexpr Function operator-(const T1& t1, const T2& t2) {
-    return Function(Difference, t1, t2);
-}
-template <class T1, class T2>
-constexpr Function operator*(const T1& t1, const T2& t2) {
-    return Function(Product, t1, t2);
-}
-template <class T1, class T2>
-constexpr Function operator/(const T1& t1, const T2& t2) {
-    return Function(Ratio, t1, t2);
-}
-template <class T1, class T2>
-constexpr Function operator^(const T1& t1, const T2& t2) {
-    return Function(Power, t1, t2);
-}
-template <class T>
-constexpr Function sine(const T& t) {
-    return Function(Sine, t);
-}
+template <Algebraic InputType, Algebraic OutputType>
+using Function = Function_lvalue<InputType, OutputType>;
 
 }  // namespace symbolic

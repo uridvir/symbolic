@@ -7,7 +7,8 @@ project(
     DESCRIPTION "Symbolic math library in C++, for fun and probably not profit"
 )
 
-set(CXX_STANDARD_REQUIRED C++20)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 add_subdirectory(src)
 add_subdirectory(test)

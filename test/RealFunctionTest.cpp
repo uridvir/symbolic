@@ -7,8 +7,8 @@ int main(int argc, char* argv[]){
 
     Symbol x;
 
-    Function f = sine((2 * (x ^ 2))/3 - 1);
+    Function<float, float> f = sine(((2 * x) ^ 2) + ((4 * x) ^ 2));
 
-    std::cout << f(4) << std::endl;
+    std::cout << f(1) << std::endl;
 
 }
