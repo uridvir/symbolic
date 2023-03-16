@@ -74,7 +74,7 @@ class Function_rvalue {
     template <Algebraic InputType, Algebraic OutputType>
     friend class Function_lvalue;
 
-    template <int N1, int N2, typename = typename std::enable_if_t<N == N1 + N2 + 1>>
+    template <int N1, int N2, typename = std::enable_if_t<N == N1 + N2 + 1>>
     constexpr Function_rvalue(FunctionType ft, const Function_rvalue<N1>& lhs, const Function_rvalue<N2>& rhs) {
         nodes[0].ft = ft;
         nodes[0].has_children = true;
@@ -84,7 +84,7 @@ class Function_rvalue {
         moveNodes(N2, rhs.nodes, 0, nodes, nodes[0].children[1]);
     }
 
-    template <int N1, typename = typename std::enable_if_t<N == N1 + 1>>
+    template <int N1, typename = std::enable_if_t<N == N1 + 1>>
     constexpr Function_rvalue(FunctionType ft, const Function_rvalue<N1>& lhs) {
         nodes[0].ft = ft;
         nodes[0].has_children = true;
@@ -93,14 +93,20 @@ class Function_rvalue {
     }
 
    public:
+   /**
+    * TODO: Fix design flaw that causes GCC to give template errors for N > 1.
+    * For N > 1, every specialization of these constructors is ill-formed. Therefore,
+    * the compiler is within its rights to disallow this.
+    * See https://developercommunity.visualstudio.com/t/enable-if-powered-sfinae-fails-to-compile-even-on/556453
+   */
     template <typename = std::enable_if_t<N == 1>>
-    constexpr Function_rvalue(const Symbol& sym) : nodes() {
+    constexpr Function_rvalue(const Symbol& sym) {
         nodes[0].ft = Identity;
         nodes[0].sym = &sym;
         nodes[0].has_children = false;
     }
-    template <class T, typename = std::enable_if_t<N == 1>>
-    constexpr Function_rvalue(const T& t) : nodes() {
+    template <Algebraic T, typename = std::enable_if_t<N == 1>>
+    constexpr Function_rvalue(const T& t) {
         nodes[0].ft = Constant;
         std::complex c = t;
         nodes[0].C[0] = c.real();
@@ -192,8 +198,8 @@ class Function_lvalue {
     }
 
     public:
-    template <int N>
-    constexpr Function_lvalue(const Function_rvalue<N>& rhs) : nodes(), N(N) {
+    template <int N1>
+    constexpr Function_lvalue(const Function_rvalue<N1>& rhs) : nodes(), N(N1) {
         for (std::size_t i = 0; i < N; i++) nodes[i] = rhs.nodes[i];
     }
 
