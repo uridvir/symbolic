@@ -33,20 +33,6 @@ struct FunctionNode {
     bool has_children;
 };
 
-/**
- * Move n nodes from nodes1, starting at index start1, to nodes2, starting at index start2.
- * Handles transformation of indices.
- */
-void moveNodes(std::size_t n, const FunctionNode nodes1[], std::size_t start1, FunctionNode nodes2[], std::size_t start2) {
-    for (std::size_t i = 0; i < n; i++) {
-        nodes2[i + start2] = nodes1[i + start1];
-        if (nodes2[i + start2].has_children) {
-            nodes2[i + start2].children[0] += start2 - start1;
-            nodes2[i + start2].children[1] += start2 - start1;
-        }
-    }
-}
-
 template <int N>
 class Function_rvalue;
 
@@ -66,7 +52,7 @@ struct node_count<Function_rvalue<N>> : std::integral_constant<int, N> {};
 template <int N>
 class Function_rvalue {
    private:
-    FunctionNode nodes[N];
+    const FunctionNode nodes[N];
 
     template <int N1>
     friend class Function_rvalue;
@@ -74,8 +60,22 @@ class Function_rvalue {
     template <Algebraic InputType, Algebraic OutputType>
     friend class Function_lvalue;
 
+    /**
+     * Move n nodes from nodes1, starting at index start1, to nodes2, starting at index start2.
+     * Handles transformation of indices.
+     */
+    constexpr void moveNodes(std::size_t n, const FunctionNode nodes1[], std::size_t start1, FunctionNode nodes2[], std::size_t start2) {
+        for (std::size_t i = 0; i < n; i++) {
+            nodes2[i + start2] = nodes1[i + start1];
+            if (nodes2[i + start2].has_children) {
+                nodes2[i + start2].children[0] += start2 - start1;
+                nodes2[i + start2].children[1] += start2 - start1;
+            }
+        }
+    }
+
     template <int N1, int N2, typename = std::enable_if_t<N == N1 + N2 + 1>>
-    constexpr Function_rvalue(FunctionType ft, const Function_rvalue<N1>& lhs, const Function_rvalue<N2>& rhs) {
+    constexpr Function_rvalue(FunctionType ft, const Function_rvalue<N1>& lhs, const Function_rvalue<N2>& rhs) : nodes() {
         nodes[0].ft = ft;
         nodes[0].has_children = true;
         nodes[0].children[0] = 1;
@@ -85,7 +85,7 @@ class Function_rvalue {
     }
 
     template <int N1, typename = std::enable_if_t<N == N1 + 1>>
-    constexpr Function_rvalue(FunctionType ft, const Function_rvalue<N1>& lhs) {
+    constexpr Function_rvalue(FunctionType ft, const Function_rvalue<N1>& lhs) : nodes() {
         nodes[0].ft = ft;
         nodes[0].has_children = true;
         nodes[0].children[0] = 1;
@@ -93,20 +93,15 @@ class Function_rvalue {
     }
 
    public:
-   /**
-    * TODO: Fix design flaw that causes GCC to give template errors for N > 1.
-    * For N > 1, every specialization of these constructors is ill-formed. Therefore,
-    * the compiler is within its rights to disallow this.
-    * See https://developercommunity.visualstudio.com/t/enable-if-powered-sfinae-fails-to-compile-even-on/556453
-   */
-    template <typename = std::enable_if_t<N == 1>>
-    constexpr Function_rvalue(const Symbol& sym) {
+    // template <typename = std::enable_if_t<N == 1>>
+    constexpr Function_rvalue(const Symbol& sym) : nodes() {
         nodes[0].ft = Identity;
         nodes[0].sym = &sym;
         nodes[0].has_children = false;
     }
-    template <Algebraic T, typename = std::enable_if_t<N == 1>>
-    constexpr Function_rvalue(const T& t) {
+    // template <Algebraic T, typename = std::enable_if_t<N == 1>>
+    template <Algebraic T>
+    constexpr Function_rvalue(const T& t) : nodes() {
         nodes[0].ft = Constant;
         std::complex c = t;
         nodes[0].C[0] = c.real();
@@ -129,8 +124,6 @@ class Function_rvalue {
     // Primitive functions
     template <class T>
     friend constexpr Function_rvalue<node_count_v<T> + 1> sine(const T& t);
-    // template <Simple T>
-    // friend constexpr Function_rvalue<2> sine(const T& t);
 };
 
 template <class T1, class T2>
@@ -172,7 +165,7 @@ class Function_lvalue {
     FunctionNode nodes[MAX_NODES];
     const int N;
 
-    constexpr OutputType evaluateNode(const std::size_t i, const InputType& x) const {
+    OutputType evaluateNode(const std::size_t i, const InputType& x) const {
         switch (nodes[i].ft) {
             case Identity:
                 return x;
@@ -199,14 +192,14 @@ class Function_lvalue {
 
     public:
     template <int N1>
-    constexpr Function_lvalue(const Function_rvalue<N1>& rhs) : nodes(), N(N1) {
+    Function_lvalue(const Function_rvalue<N1>& rhs) : nodes(), N(N1) {
         for (std::size_t i = 0; i < N; i++) nodes[i] = rhs.nodes[i];
     }
 
     template <class T>
-    constexpr Function_lvalue(const T& t) : Function_lvalue(Function_rvalue<node_count_v<T>>(t)) {}
+    Function_lvalue(const T& t) : Function_lvalue(Function_rvalue<node_count_v<T>>(t)) {}
 
-    constexpr OutputType operator()(const InputType& x) const {
+    OutputType operator()(const InputType& x) const {
         return evaluateNode(0, x);
     }    
 };
