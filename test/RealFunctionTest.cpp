@@ -5,12 +5,10 @@ using namespace symbolic;
 
 int main(int argc, char* argv[]){
 
-    constexpr Symbol x;
+    constexpr Symbol x("x");
 
-    // constexpr Function_rvalue f = sine(((2 * x) ^ 2) + ((4 * x) ^ 2));
+    constexpr Function f = sine(((2 * x) ^ 2) + ((4 * x) ^ 2));
 
-    constexpr Function_rvalue f = x + 2;
-
-    // std::cout << f(1) << std::endl;
+    std::cout << f(1) << std::endl;
 
 }

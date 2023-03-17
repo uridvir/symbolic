@@ -5,206 +5,180 @@
 
 namespace symbolic {
 
-class Symbol {};
-
-enum FunctionType {
-    Null,      // Default
-    Identity,  // Variables
-    Constant,  // Numbers
-    Sum,
-    Difference,
-    Product,
-    Ratio,
-    Power,        // Operations
-    Composition,  // Composition
-    Sine,         // Primitives
+class Symbol {
+    public:
+    const char* name;
+    constexpr Symbol(const char* name) : name(name) {}
 };
 
 using symbolic_fundamental_t = long double;
 using symbolic_complex_t = std::complex<symbolic_fundamental_t>;
 
-struct FunctionNode {
-    FunctionType ft;
-    union {
-        int children[2];
-        symbolic_fundamental_t C[2];
-        const Symbol* sym;
-    };
-    bool has_children;
-};
-
-template <int N>
-class Function_rvalue;
-
-template <typename T>
-struct node_count : std::integral_constant<int, 0> {};
-template <typename T>
-constexpr int node_count_v = node_count<T>::value;
-template <>
-struct node_count<Symbol> : std::integral_constant<int, 1> {};
 template <typename T>
 concept Algebraic = std::convertible_to<T, symbolic_complex_t>;
-template <Algebraic T>
-struct node_count<T> : std::integral_constant<int, 1> {};
-template <int N>
-struct node_count<Function_rvalue<N>> : std::integral_constant<int, N> {};
 
-template <int N>
-class Function_rvalue {
-   private:
-    const FunctionNode nodes[N];
-
-    template <int N1>
-    friend class Function_rvalue;
-
-    template <Algebraic InputType, Algebraic OutputType>
-    friend class Function_lvalue;
-
-    /**
-     * Move n nodes from nodes1, starting at index start1, to nodes2, starting at index start2.
-     * Handles transformation of indices.
-     */
-    constexpr void moveNodes(std::size_t n, const FunctionNode nodes1[], std::size_t start1, FunctionNode nodes2[], std::size_t start2) {
-        for (std::size_t i = 0; i < n; i++) {
-            nodes2[i + start2] = nodes1[i + start1];
-            if (nodes2[i + start2].has_children) {
-                nodes2[i + start2].children[0] += start2 - start1;
-                nodes2[i + start2].children[1] += start2 - start1;
-            }
-        }
-    }
-
-    template <int N1, int N2, typename = std::enable_if_t<N == N1 + N2 + 1>>
-    constexpr Function_rvalue(FunctionType ft, const Function_rvalue<N1>& lhs, const Function_rvalue<N2>& rhs) : nodes() {
-        nodes[0].ft = ft;
-        nodes[0].has_children = true;
-        nodes[0].children[0] = 1;
-        nodes[0].children[1] = 1 + N1;
-        moveNodes(N1, lhs.nodes, 0, nodes, nodes[0].children[0]);
-        moveNodes(N2, rhs.nodes, 0, nodes, nodes[0].children[1]);
-    }
-
-    template <int N1, typename = std::enable_if_t<N == N1 + 1>>
-    constexpr Function_rvalue(FunctionType ft, const Function_rvalue<N1>& lhs) : nodes() {
-        nodes[0].ft = ft;
-        nodes[0].has_children = true;
-        nodes[0].children[0] = 1;
-        moveNodes(N1, lhs.nodes, 0, nodes, nodes[0].children[0]);
-    }
-
-   public:
-    // template <typename = std::enable_if_t<N == 1>>
-    constexpr Function_rvalue(const Symbol& sym) : nodes() {
-        nodes[0].ft = Identity;
-        nodes[0].sym = &sym;
-        nodes[0].has_children = false;
-    }
-    // template <Algebraic T, typename = std::enable_if_t<N == 1>>
-    template <Algebraic T>
-    constexpr Function_rvalue(const T& t) : nodes() {
-        nodes[0].ft = Constant;
-        std::complex c = t;
-        nodes[0].C[0] = c.real();
-        nodes[0].C[1] = c.imag();
-        nodes[0].has_children = false;
-    }
-
-    // Binary operations
-    template <class T1, class T2>
-    friend constexpr Function_rvalue<node_count_v<T1> + node_count_v<T2> + 1> operator+(const T1& t1, const T2& t2);
-    template <class T1, class T2>
-    friend constexpr Function_rvalue<node_count_v<T1> + node_count_v<T2> + 1> operator-(const T1& t1, const T2& t2);
-    template <class T1, class T2>
-    friend constexpr Function_rvalue<node_count_v<T1> + node_count_v<T2> + 1> operator*(const T1& t1, const T2& t2);
-    template <class T1, class T2>
-    friend constexpr Function_rvalue<node_count_v<T1> + node_count_v<T2> + 1> operator/(const T1& t1, const T2& t2);
-    template <class T1, class T2>
-    friend constexpr Function_rvalue<node_count_v<T1> + node_count_v<T2> + 1> operator^(const T1& t1, const T2& t2);
-
-    // Primitive functions
-    template <class T>
-    friend constexpr Function_rvalue<node_count_v<T> + 1> sine(const T& t);
-};
-
-template <class T1, class T2>
-constexpr Function_rvalue<node_count_v<T1> + node_count_v<T2> + 1> operator+(const T1& t1, const T2& t2) {
-    const int N1 = node_count_v<T1>; const int N2 = node_count_v<T2>; const int N = N1 + N2 + 1;
-    return Function_rvalue<N>(Sum, Function_rvalue<N1>(t1), Function_rvalue<N2>(t2));
-}
-template <class T1, class T2>
-constexpr Function_rvalue<node_count_v<T1> + node_count_v<T2> + 1> operator-(const T1& t1, const T2& t2) {
-    const int N1 = node_count_v<T1>; const int N2 = node_count_v<T2>; const int N = N1 + N2 + 1;
-    return Function_rvalue<N>(Difference, Function_rvalue<N1>(t1), Function_rvalue<N2>(t2));
-}
-template <class T1, class T2>
-constexpr Function_rvalue<node_count_v<T1> + node_count_v<T2> + 1> operator*(const T1& t1, const T2& t2) {
-    const int N1 = node_count_v<T1>; const int N2 = node_count_v<T2>; const int N = N1 + N2 + 1;
-    return Function_rvalue<N>(Product, Function_rvalue<N1>(t1), Function_rvalue<N2>(t2));
-}
-template <class T1, class T2>
-constexpr Function_rvalue<node_count_v<T1> + node_count_v<T2> + 1> operator/(const T1& t1, const T2& t2) {
-    const int N1 = node_count_v<T1>; const int N2 = node_count_v<T2>; const int N = N1 + N2 + 1;
-    return Function_rvalue<N>(Ratio, Function_rvalue<N1>(t1), Function_rvalue<N2>(t2));
-}
-template <class T1, class T2>
-constexpr Function_rvalue<node_count_v<T1> + node_count_v<T2> + 1> operator^(const T1& t1, const T2& t2) {
-    const int N1 = node_count_v<T1>; const int N2 = node_count_v<T2>; const int N = N1 + N2 + 1;
-    return Function_rvalue<N>(Power, Function_rvalue<N1>(t1), Function_rvalue<N2>(t2));
+// Expression (base)
+struct symbolic_expression {};
+template <class T>
+concept Expression = std::derived_from<T, symbolic_expression>;
+template <Expression E>
+symbolic_complex_t symbolic_evaluate(const E& expr, const symbolic_complex_t& x) {  // Base template
+    return std::numeric_limits<symbolic_fundamental_t>::quiet_NaN();
 }
 template <class T>
-constexpr Function_rvalue<node_count_v<T> + 1> sine(const T& t) {
-    const int N1 = node_count_v<T>; const int N = N1 + 1;
-    return Function_rvalue<N>(Sine, Function_rvalue<N1>(t));
+struct expression_type : std::type_identity<symbolic_expression> {};
+template <Expression E>
+struct expression_type<E> : std::type_identity<E> {};
+template <class T>
+using expression_type_t = expression_type<T>::type;
+
+// Constant
+template <Algebraic T>
+struct symbolic_constant : symbolic_expression {
+   public:
+    const T C;
+    constexpr symbolic_constant(const T& C) : C(C) {}
+};
+template <Algebraic T>
+symbolic_complex_t symbolic_evaluate(const symbolic_constant<T>& expr, const symbolic_complex_t& x) {
+    return expr.C;
+}
+template <Algebraic T>
+struct expression_type<T> : std::type_identity<symbolic_constant<T>> {};
+
+//Identity
+struct symbolic_identity : symbolic_expression {
+   public:
+    const Symbol sym;
+    constexpr symbolic_identity(const Symbol& sym) : sym(sym) {}
+};
+template <>
+symbolic_complex_t symbolic_evaluate(const symbolic_identity& expr, const symbolic_complex_t& x) {
+    return x;
+}
+template <>
+struct expression_type<Symbol> : std::type_identity<symbolic_identity> {};
+
+//Sum
+template <Expression E1, Expression E2>
+struct symbolic_sum : public symbolic_expression {
+   public:
+    const E1 lhs;
+    const E2 rhs;
+    constexpr symbolic_sum(const E1& lhs, const E2& rhs) : lhs(lhs), rhs(rhs) {}
+};
+template <Expression E1, Expression E2>
+symbolic_complex_t symbolic_evaluate(const symbolic_sum<E1, E2>& expr, const symbolic_complex_t& x) {
+    return symbolic_evaluate(expr.lhs, x) + symbolic_evaluate(expr.rhs, x);
+}
+template <class T1, class T2>
+constexpr symbolic_sum<expression_type_t<T1>, expression_type_t<T2>> operator+(const T1& lhs, const T2& rhs) {
+    return symbolic_sum(expression_type_t<T1>(lhs), expression_type_t<T2>(rhs));
 }
 
-const int MAX_NODES = 1024;
+//Difference
+template <Expression E1, Expression E2>
+struct symbolic_difference : public symbolic_expression {
+   public:
+    const E1 lhs;
+    const E2 rhs;
+    constexpr symbolic_difference(const E1& lhs, const E2& rhs) : lhs(lhs), rhs(rhs) {}
+};
+template <Expression E1, Expression E2>
+symbolic_complex_t symbolic_evaluate(const symbolic_difference<E1, E2>& expr, const symbolic_complex_t& x) {
+    return symbolic_evaluate(expr.lhs, x) - symbolic_evaluate(expr.rhs, x);
+}
+template <class T1, class T2>
+constexpr symbolic_difference<expression_type_t<T1>, expression_type_t<T2>> operator-(const T1& lhs, const T2& rhs) {
+    return symbolic_difference(expression_type_t<T1>(lhs), expression_type_t<T2>(rhs));
+}
 
-template <Algebraic InputType, Algebraic OutputType>
-class Function_lvalue {
-    private:
-    FunctionNode nodes[MAX_NODES];
-    const int N;
+//Product
+template <Expression E1, Expression E2>
+struct symbolic_product : public symbolic_expression {
+   public:
+    const E1 lhs;
+    const E2 rhs;
+    constexpr symbolic_product(const E1& lhs, const E2& rhs) : lhs(lhs), rhs(rhs) {}
+};
+template <Expression E1, Expression E2>
+symbolic_complex_t symbolic_evaluate(const symbolic_product<E1, E2>& expr, const symbolic_complex_t& x) {
+    return symbolic_evaluate(expr.lhs, x) * symbolic_evaluate(expr.rhs, x);
+}
+template <class T1, class T2>
+constexpr symbolic_product<expression_type_t<T1>, expression_type_t<T2>> operator*(const T1& lhs, const T2& rhs) {
+    return symbolic_product(expression_type_t<T1>(lhs), expression_type_t<T2>(rhs));
+}
 
-    OutputType evaluateNode(const std::size_t i, const InputType& x) const {
-        switch (nodes[i].ft) {
-            case Identity:
-                return x;
-            case Constant:
-                return nodes[i].C[0]; //TODO: Proper down-casting from complex
-            // Binary operations
-            case Sum:
-                return evaluateNode(nodes[i].children[0], x) + evaluateNode(nodes[i].children[1], x);
-            case Difference:
-                return evaluateNode(nodes[i].children[0], x) - evaluateNode(nodes[i].children[1], x);
-            case Product:
-                return evaluateNode(nodes[i].children[0], x) * evaluateNode(nodes[i].children[1], x);
-            case Ratio:
-                return evaluateNode(nodes[i].children[0], x) / evaluateNode(nodes[i].children[1], x);
-            case Power:
-                return std::pow(evaluateNode(nodes[i].children[0], x), evaluateNode(nodes[i].children[1], x));
-            // Primitives
-            case Sine:
-                return std::sin(evaluateNode(nodes[i].children[0], x));
-            default:
-                return std::numeric_limits<float>::quiet_NaN();
-        }
-    }
+//Ratio
+template <Expression E1, Expression E2>
+struct symbolic_ratio : public symbolic_expression {
+   public:
+    const E1 lhs;
+    const E2 rhs;
+    constexpr symbolic_ratio(const E1& lhs, const E2& rhs) : lhs(lhs), rhs(rhs) {}
+};
+template <Expression E1, Expression E2>
+symbolic_complex_t symbolic_evaluate(const symbolic_ratio<E1, E2>& expr, const symbolic_complex_t& x) {
+    return symbolic_evaluate(expr.lhs, x) / symbolic_evaluate(expr.rhs, x);
+}
+template <class T1, class T2>
+constexpr symbolic_ratio<expression_type_t<T1>, expression_type_t<T2>> operator/(const T1& lhs, const T2& rhs) {
+    return symbolic_ratio(expression_type_t<T1>(lhs), expression_type_t<T2>(rhs));
+}
 
-    public:
-    template <int N1>
-    Function_lvalue(const Function_rvalue<N1>& rhs) : nodes(), N(N1) {
-        for (std::size_t i = 0; i < N; i++) nodes[i] = rhs.nodes[i];
-    }
+//Power
+template <Expression E1, Expression E2>
+struct symbolic_power : public symbolic_expression {
+   public:
+    const E1 lhs;
+    const E2 rhs;
+    constexpr symbolic_power(const E1& lhs, const E2& rhs) : lhs(lhs), rhs(rhs) {}
+};
+template <Expression E1, Expression E2>
+symbolic_complex_t symbolic_evaluate(const symbolic_power<E1, E2>& expr, const symbolic_complex_t& x) {
+    return std::pow(symbolic_evaluate(expr.lhs, x), symbolic_evaluate(expr.rhs, x));
+}
+template <class T1, class T2>
+constexpr symbolic_power<expression_type_t<T1>, expression_type_t<T2>> operator^(const T1& lhs, const T2& rhs) {
+    return symbolic_power(expression_type_t<T1>(lhs), expression_type_t<T2>(rhs));
+}
 
-    template <class T>
-    Function_lvalue(const T& t) : Function_lvalue(Function_rvalue<node_count_v<T>>(t)) {}
+//Sine
+template <Expression E>
+struct symbolic_sine : public symbolic_expression {
+   public:
+    const E expr;
+    constexpr symbolic_sine(const E& expr) : expr(expr) {}
+};
+template <Expression E>
+symbolic_complex_t symbolic_evaluate(const symbolic_sine<E>& expr, const symbolic_complex_t& x) {
+    return std::sin(symbolic_evaluate(expr.expr, x));
+}
+template <class T>
+constexpr symbolic_sine<expression_type_t<T>> sine(const T& t) {
+    return symbolic_sine(expression_type_t<T>(t));
+}
 
-    OutputType operator()(const InputType& x) const {
-        return evaluateNode(0, x);
-    }    
+template <Expression E>
+class Function {
+   private:
+    const E expr;
+
+   public:
+    constexpr Function(const E& expr) : expr(expr) {}
+
+    //Simple functions
+    template <Algebraic T>
+    constexpr Function(const T& t) : Function(symbolic_constant<T>(t)) {}
+    constexpr Function(const Symbol& sym) : Function(symbolic_identity(sym)) {}
+
+    //Evaluate
+    symbolic_complex_t operator()(const symbolic_complex_t& x) const { return symbolic_evaluate(expr, x); }
 };
 
-template <Algebraic InputType, Algebraic OutputType>
-using Function = Function_lvalue<InputType, OutputType>;
+template <Algebraic T>
+Function(T) -> Function<symbolic_constant<T>>;
+Function(Symbol) -> Function<symbolic_identity>;
 
 }  // namespace symbolic
